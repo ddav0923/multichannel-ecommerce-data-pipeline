@@ -44,15 +44,6 @@ def link_ebay_listing(ebay_item_id: str, sku: str, price: float):
     finally:
         conn.close()
 
-if __name__ == "__main__":
-    print("--- Running Inventory Insertion Tests ---")
-    add_master_item("SKU-VINTAGE-001", "Vintage Denim Jacket - Size L", 18.50, 1)
-    link_ebay_listing("EBAY-29481029", "SKU-VINTAGE-001", 49.99)
-
-    # New Test Calls:
-    link_poshmark_listing("POSH-987654", "SKU-VINTAGE-001", 55.00)
-    get_inventory_summary()
-
 def link_poshmark_listing(poshmark_listing_id: str, sku: str, price: float):
     """Links an active Poshmark listing to an existing SKU in master inventory."""
     conn = get_db_connection()
@@ -90,7 +81,7 @@ def get_inventory_summary():
     cursor.execute(query)
     records = cursor.fetchall()
     conn.close()
-    
+
     print("\n--- Current Multi-Channel Inventory Summary ---")
     for row in records:
         print(f"SKU: {row[0]} | Name: {row[1]} | Qty: {row[2]} | eBay ID: {row[3]} | Poshmark ID: {row[4]}")
