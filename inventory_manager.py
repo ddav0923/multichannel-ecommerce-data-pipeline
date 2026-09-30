@@ -48,3 +48,57 @@ if __name__ == "__main__":
     print("--- Running Inventory Insertion Tests ---")
     add_master_item("SKU-VINTAGE-001", "Vintage Denim Jacket - Size L", 18.50, 1)
     link_ebay_listing("EBAY-29481029", "SKU-VINTAGE-001", 49.99)
+
+    # New Test Calls:
+    link_poshmark_listing("POSH-987654", "SKU-VINTAGE-001", 55.00)
+    get_inventory_summary()
+
+def link_poshmark_listing(poshmark_listing_id: str, sku: str, price: float):
+    """Links an active Poshmark listing to an existing SKU in master inventory."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    query = """
+        INSERT INTO poshmark_listings (poshmark_listing_id, sku, current_price)
+        VALUES (?, ?, ?)
+    """
+    try:
+        cursor.execute(query, (poshmark_listing_id, sku, price))
+        conn.commit()
+        print(f"🔗 Linked Poshmark Item {poshmark_listing_id} -> SKU {sku}")
+    except sqlite3.IntegrityError:
+        print(f"⚠️ Link Failed: Foreign Key Error. Ensure SKU '{sku}' exists in master_inventory first.")
+    finally:
+        conn.close()
+
+def get_inventory_summary():
+    """Performs a LEFT JOIN to report live channel listings across eBay and Poshmark."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    query = """
+        SELECT 
+            m.sku,
+            m.item_name,
+            m.quantity_in_stock,
+            e.ebay_item_id,
+            p.poshmark_listing_id
+        FROM master_inventory m
+        LEFT JOIN ebay_listings e ON m.sku = e.sku
+        LEFT JOIN poshmark_listings p ON m.sku = p.sku
+    """
+    cursor.execute(query)
+    records = cursor.fetchall()
+    conn.close()
+    
+    print("\n--- Current Multi-Channel Inventory Summary ---")
+    for row in records:
+        print(f"SKU: {row[0]} | Name: {row[1]} | Qty: {row[2]} | eBay ID: {row[3]} | Poshmark ID: {row[4]}")
+
+if __name__ == "__main__":
+    print("--- Running Inventory Insertion Tests ---")
+    add_master_item("SKU-VINTAGE-001", "Vintage Denim Jacket - Size L", 18.50, 1)
+    link_ebay_listing("EBAY-29481029", "SKU-VINTAGE-001", 49.99)
+    link_poshmark_listing("POSH-987654", "SKU-VINTAGE-001", 55.00)
+    
+    get_inventory_summary()
