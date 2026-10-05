@@ -93,3 +93,63 @@ if __name__ == "__main__":
     link_poshmark_listing("POSH-987654", "SKU-VINTAGE-001", 55.00)
     
     get_inventory_summary()
+
+def record_sale(sku, channel):
+    """
+    Records a sale for a given SKU on a specific marketplace channel.
+    Decrements quantity in master_inventory and handles channel status updates.
+    """
+    conn = sqlite3.connect("inventory_system.db")
+    cursor = conn.cursor()
+    cursor.execute("PRAGMA foreign_keys = ON;")
+
+    try:
+        # 1. Fetch current quantity
+        cursor.execute("SELECT quantity FROM master_inventory WHERE sku = ?;", (sku,))
+        result = cursor.fetchone()
+
+        if not result:
+            print(f"❌ Error: SKU '{sku}' not found in master inventory.")
+            return
+
+        current_qty = result[0]
+
+        if current_qty <= 0:
+            print(f"⚠️ Warning: SKU '{sku}' is already out of stock!")
+            return
+
+        # 2. Decrement master quantity
+        new_qty = current_qty - 1
+        cursor.execute(
+            "UPDATE master_inventory SET quantity = ? WHERE sku = ?;",
+            (new_qty, sku)
+        )
+
+        print(f"✅ Sale recorded on {channel} for SKU '{sku}'. New master quantity: {new_qty}")
+
+        # 3. If quantity hit 0, mark as sold out across listings
+        if new_qty == 0:
+            print(f"🛑 SKU '{sku}' reached 0 quantity. Marking channel listings as OUT OF STOCK...")
+            cursor.execute(
+                "UPDATE ebay_listings SET listing_status = 'OUT_OF_STOCK' WHERE sku = ?;",
+                (sku,)
+            )
+            cursor.execute(
+                "UPDATE poshmark_listings SET listing_status = 'OUT_OF_STOCK' WHERE sku = ?;",
+                (sku,)
+            )
+
+        conn.commit()
+
+    except sqlite3.Error as e:
+        conn.rollback()
+        print(f"❌ Database error during sale recording: {e}")
+    finally:
+        conn.close()
+        
+# ==========================================
+# 2. TESTING BLOCK (EXECUTES WHEN YOU RUN FILE)
+# ==========================================
+if __name__ == "__main__":
+    # Test recording a sale on an existing SKU
+    record_sale("TSHIRT-BLK-M", "Poshmark")
