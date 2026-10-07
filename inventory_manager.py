@@ -92,20 +92,23 @@ if __name__ == "__main__":
     link_ebay_listing("EBAY-29481029", "SKU-VINTAGE-001", 49.99)
     link_poshmark_listing("POSH-987654", "SKU-VINTAGE-001", 55.00)
     
+    # Show initial state
     get_inventory_summary()
 
-def record_sale(sku, channel):
-    """
-    Records a sale for a given SKU on a specific marketplace channel.
-    Decrements quantity in master_inventory and handles channel status updates.
-    """
-    conn = sqlite3.connect("inventory_system.db")
+    # Record sale for existing item
+    record_sale("SKU-VINTAGE-001", "Poshmark")
+
+    # Show updated state
+    get_inventory_summary()
+
+def record_sale(sku: str, channel: str):
+    """Decrements quantity_in_stock in master inventory when an item sells."""
+    conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("PRAGMA foreign_keys = ON;")
 
     try:
-        # 1. Fetch current quantity
-        cursor.execute("SELECT quantity FROM master_inventory WHERE sku = ?;", (sku,))
+        # 1. Fetch using quantity_in_stock
+        cursor.execute("SELECT quantity_in_stock FROM master_inventory WHERE sku = ?;", (sku,))
         result = cursor.fetchone()
 
         if not result:
@@ -118,26 +121,17 @@ def record_sale(sku, channel):
             print(f"⚠️ Warning: SKU '{sku}' is already out of stock!")
             return
 
-        # 2. Decrement master quantity
+        # 2. Update using quantity_in_stock
         new_qty = current_qty - 1
         cursor.execute(
-            "UPDATE master_inventory SET quantity = ? WHERE sku = ?;",
+            "UPDATE master_inventory SET quantity_in_stock = ? WHERE sku = ?;",
             (new_qty, sku)
         )
 
-        print(f"✅ Sale recorded on {channel} for SKU '{sku}'. New master quantity: {new_qty}")
+        print(f"\n✅ Sale recorded on {channel} for SKU '{sku}'. New master quantity: {new_qty}")
 
-        # 3. If quantity hit 0, mark as sold out across listings
         if new_qty == 0:
-            print(f"🛑 SKU '{sku}' reached 0 quantity. Marking channel listings as OUT OF STOCK...")
-            cursor.execute(
-                "UPDATE ebay_listings SET listing_status = 'OUT_OF_STOCK' WHERE sku = ?;",
-                (sku,)
-            )
-            cursor.execute(
-                "UPDATE poshmark_listings SET listing_status = 'OUT_OF_STOCK' WHERE sku = ?;",
-                (sku,)
-            )
+            print(f"🛑 SKU '{sku}' reached 0 stock.")
 
         conn.commit()
 
